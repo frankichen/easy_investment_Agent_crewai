@@ -96,6 +96,19 @@ EOF
 
 echo "✓ 发布包已创建"
 
+# 步骤5: 压缩发布包 (使用UPX)
+echo ""
+echo "[6/6] 压缩可执行文件和库..."
+if command -v upx &> /dev/null; then
+    echo "使用UPX进行极限压缩..."
+    # 强制压缩Go可执行文件和所有Python相关的二进制文件
+    find "release/A股智能分析系统/" -type f -name "*.exe" -exec upx --best {} \;
+    find "release/A股智能分析系统/python_bundle/" -type f \( -name "*.so*" -o -name "*.pyd" -o -name "*.dll" \) -exec upx --best {} \;
+    echo "✓ 压缩完成"
+else
+    echo "⚠️  警告: UPX未安装，跳过压缩步骤。最终包体积会较大。"
+fi
+
 # 完成
 echo ""
 echo "========================================"

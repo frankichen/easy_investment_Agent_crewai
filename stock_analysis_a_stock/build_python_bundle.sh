@@ -3,6 +3,11 @@
 
 set -e
 
+# Clean up previous builds
+echo "Cleaning up previous build directories..."
+rm -rf dist build
+echo "Cleanup complete."
+
 echo "===================================="
 echo "Building Python Bundle with PyInstaller"
 echo "===================================="
