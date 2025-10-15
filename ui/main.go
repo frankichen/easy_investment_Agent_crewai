@@ -1285,9 +1285,14 @@ func runAnalysis(session *AnalysisSession) {
 	}
 
 	if err := cmd.Start(); err != nil {
-		session.broadcastError(fmt.Sprintf("启动Python进程失败: %v", err))
+		errMsg := fmt.Sprintf("启动Python进程失败: %v", err)
+		log.Printf(errMsg)
+		session.broadcastError(errMsg)
 		return
 	}
+
+	log.Printf("Python process started successfully, PID: %d", cmd.Process.Pid)
+	session.broadcastStatus("Python分析引擎已启动，正在加载分析模块...")
 
 	// Read output in goroutines
 	var wg sync.WaitGroup
@@ -1325,7 +1330,9 @@ func runAnalysis(session *AnalysisSession) {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			line := scanner.Text()
-			session.broadcastOutput("[ERROR] " + line)
+			// 将stderr也输出到界面，但加上标记
+			session.broadcastOutput("⚠️ " + line)
+			log.Printf("Python stderr: %s", line)
 		}
 	}()
 
@@ -1337,8 +1344,11 @@ func runAnalysis(session *AnalysisSession) {
 	session.mu.Unlock()
 
 	if err != nil {
-		session.broadcastError(fmt.Sprintf("分析过程出错: %v", err))
+		errMsg := fmt.Sprintf("分析过程出错: %v", err)
+		log.Printf("Analysis failed: %v", err)
+		session.broadcastError(errMsg)
 	} else {
+		log.Printf("Analysis completed successfully")
 		session.broadcastComplete(resultBuilder)
 	}
 }

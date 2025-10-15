@@ -9,8 +9,13 @@ from tools.market_sentiment_tool import MarketSentimentTool
 from tools.calculator_tool import CalculatorTool
 
 import os
+import sys
 from dotenv import load_dotenv
 load_dotenv()
+
+# 确保输出实时刷新
+from streaming_output import setup_realtime_output
+setup_realtime_output()
 
 # Load AI configuration from settings file or environment variables
 from config_loader import load_ai_config
@@ -37,20 +42,46 @@ llm = LLM(
 )
 
 class StockAnalysisCallbackHandler(BaseCallbackHandler):
+    """回调处理器 - 实时输出分析进度"""
+    
     def setup_listeners(self, crew) -> None:
         pass
 
     def on_task_begin(self, task, **kwargs):
-        print(f"\n[STATUS] 开始执行任务: {task.description}\n")
+        msg = f"[STATUS] 开始执行任务: {task.description}"
+        print(msg, flush=True)
 
     def on_task_end(self, task, **kwargs):
-        print(f"\n[STATUS] 任务完成: {task.description}\n")
+        msg = f"[STATUS] 任务完成: {task.description}"
+        print(msg, flush=True)
 
     def on_agent_step_begin(self, agent, **kwargs):
-        print(f"\n[PROGRESS] 分析师 '{agent.role}' 开始思考...\n")
+        msg = f"[PROGRESS] 分析师 '{agent.role}' 开始工作..."
+        print(msg, flush=True)
 
     def on_agent_step_end(self, agent, output, **kwargs):
-        print(f"\n[PROGRESS] 分析师 '{agent.role}' 完成思考。\n")
+        msg = f"[PROGRESS] 分析师 '{agent.role}' 完成本轮分析"
+        print(msg, flush=True)
+        # 如果有输出内容，也打印一部分（防止输出过长）
+        if output and str(output).strip():
+            output_preview = str(output)[:200]
+            print(f"[PROGRESS] 输出预览: {output_preview}...", flush=True)
+    
+    def on_tool_start(self, tool_name, **kwargs):
+        msg = f"[PROGRESS] 正在使用工具: {tool_name}"
+        print(msg, flush=True)
+    
+    def on_tool_end(self, tool_name, output, **kwargs):
+        msg = f"[PROGRESS] 工具 {tool_name} 执行完成"
+        print(msg, flush=True)
+    
+    def on_llm_start(self, **kwargs):
+        msg = "[PROGRESS] AI模型正在生成回复..."
+        print(msg, flush=True)
+    
+    def on_llm_end(self, response, **kwargs):
+        msg = "[PROGRESS] AI模型回复完成"
+        print(msg, flush=True)
 
 @CrewBase
 class AStockAnalysisCrew:
@@ -61,7 +92,7 @@ class AStockAnalysisCrew:
     def a_stock_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config['a_stock_analyst'],
-            verbose=True,
+            verbose=2,  # 最高详细度
             llm=llm,
             tools=[
                 AStockDataTool(),
@@ -81,7 +112,7 @@ class AStockAnalysisCrew:
     def financial_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config['financial_analyst'],
-            verbose=True,
+            verbose=2,  # 最高详细度
             llm=llm,
             tools=[
                 AStockDataTool(),
@@ -101,7 +132,7 @@ class AStockAnalysisCrew:
     def market_sentiment_agent(self) -> Agent:
         return Agent(
             config=self.agents_config['market_sentiment_analyst'],
-            verbose=True,
+            verbose=2,  # 最高详细度
             llm=llm,
             tools=[
                 AStockDataTool(),
@@ -120,7 +151,7 @@ class AStockAnalysisCrew:
     def investment_advisor(self) -> Agent:
         return Agent(
             config=self.agents_config['investment_advisor'],
-            verbose=True,
+            verbose=2,  # 最高详细度
             llm=llm,
             tools=[
                 CalculatorTool(),
@@ -141,6 +172,6 @@ class AStockAnalysisCrew:
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
-            verbose=True,
+            verbose=2,  # 使用最高详细度级别
             callback=StockAnalysisCallbackHandler(),
         )
