@@ -1,6 +1,7 @@
 from typing import List
 from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
+from crewai.events import BaseEventListener as BaseCallbackHandler
 
 from tools.a_stock_data_tool import AStockDataTool
 from tools.financial_tool import FinancialAnalysisTool
@@ -34,6 +35,22 @@ llm = LLM(
     stop=["END"],
     seed=42
 )
+
+class StockAnalysisCallbackHandler(BaseCallbackHandler):
+    def setup_listeners(self, crew) -> None:
+        pass
+
+    def on_task_begin(self, task, **kwargs):
+        print(f"\n[STATUS] 开始执行任务: {task.description}\n")
+
+    def on_task_end(self, task, **kwargs):
+        print(f"\n[STATUS] 任务完成: {task.description}\n")
+
+    def on_agent_step_begin(self, agent, **kwargs):
+        print(f"\n[PROGRESS] 分析师 '{agent.role}' 开始思考...\n")
+
+    def on_agent_step_end(self, agent, output, **kwargs):
+        print(f"\n[PROGRESS] 分析师 '{agent.role}' 完成思考。\n")
 
 @CrewBase
 class AStockAnalysisCrew:
@@ -125,4 +142,5 @@ class AStockAnalysisCrew:
             tasks=self.tasks,
             process=Process.sequential,
             verbose=True,
+            callback=StockAnalysisCallbackHandler(),
         )

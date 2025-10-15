@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -118,12 +119,12 @@ func saveSettings(settings *AISettings) error {
 // writeSettingsToEnv writes settings to .env file for Python to use
 func writeSettingsToEnv(settings *AISettings) error {
 	// Find the Python script directory
-	mainPyPath := findMainPy()
-	if mainPyPath == "" {
-		return fmt.Errorf("未找到Python分析脚本目录")
+	cliEntryPath := findCliEntryPy()
+	if cliEntryPath == "" {
+		return fmt.Errorf("未找到Python分析脚本目录 (cli_entry.py)")
 	}
 	
-	pythonDir := filepath.Dir(mainPyPath)
+	pythonDir := filepath.Dir(cliEntryPath)
 	envPath := filepath.Join(pythonDir, ".env")
 	
 	// Create env content
@@ -1244,60 +1245,30 @@ func runAnalysis(session *AnalysisSession) {
 	} else {
 		// Fallback to traditional Python method
 		session.broadcastStatus("使用系统Python环境...")
-		
+
 		pythonCmd := findPython()
 		if pythonCmd == "" {
 			session.broadcastError("未找到Python环境，请确保已安装Python 3.12+")
 			return
 		}
 
-		mainPyPath := findMainPy()
-		if mainPyPath == "" {
-			session.broadcastError("未找到Python分析脚本")
+		cliEntryPath := findCliEntryPy()
+		if cliEntryPath == "" {
+			session.broadcastError("未找到Python分析脚本 (cli_entry.py)")
 			return
 		}
 
-		// Create a temporary Python script to run analysis with parameters
-		tmpScript := fmt.Sprintf(`
-import sys
-import os
-sys.path.insert(0, '%s')
-from crew import AStockAnalysisCrew
-
-inputs = {
-    'company_name': '%s',
-    'stock_code': '%s',
-    'market': '%s'
-}
-
-print("## 欢迎使用A股智能分析系统")
-print('-------------------------------')
-print(f"正在分析: {inputs['company_name']} ({inputs['stock_code']})")
-print('-------------------------------')
-
-result = AStockAnalysisCrew().crew().kickoff(inputs=inputs)
-
-print("\\n\\n########################")
-print("## 分析报告")
-print("########################\\n")
-print(result)
-`, filepath.Dir(mainPyPath), session.CompanyName, session.StockCode, session.Market)
-
-		tmpFile, err := os.CreateTemp("", "analysis_*.py")
-		if err != nil {
-			session.broadcastError(fmt.Sprintf("创建临时脚本失败: %v", err))
-			return
-		}
-		defer os.Remove(tmpFile.Name())
-
-		if _, err := tmpFile.WriteString(tmpScript); err != nil {
-			session.broadcastError(fmt.Sprintf("写入临时脚本失败: %v", err))
-			return
-		}
-		tmpFile.Close()
-
-		cmd = exec.Command(pythonCmd, tmpFile.Name())
-		cmd.Dir = filepath.Dir(mainPyPath)
+		// Use the cli_entry.py script directly
+		cmd = exec.Command(
+			pythonCmd,
+			"-u", // Add -u flag to disable output buffering
+			cliEntryPath,
+			"--company", session.CompanyName,
+			"--code", session.StockCode,
+			"--market", session.Market,
+		)
+		// Set the working directory to the script's directory
+		cmd.Dir = filepath.Dir(cliEntryPath)
 	}
 
 	// Set up pipes for stdout and stderr
@@ -1330,10 +1301,22 @@ print(result)
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
+
+			// Process structured messages
+			if strings.HasPrefix(line, "[STATUS]") {
+				statusMsg := strings.TrimSpace(strings.TrimPrefix(line, "[STATUS]"))
+				session.broadcastStatus(statusMsg)
+			} else if strings.HasPrefix(line, "[PROGRESS]") {
+				// Progress messages can be handled differently if needed
+				// For now, just treat them as regular output
+				session.broadcastOutput(line)
+			} else {
+				session.broadcastOutput(line)
+			}
+
 			outputMu.Lock()
 			resultBuilder += line + "\n"
 			outputMu.Unlock()
-			session.broadcastOutput(line)
 		}
 	}()
 
@@ -1485,18 +1468,18 @@ func findPython() string {
 	return ""
 }
 
-func findMainPy() string {
+func findCliEntryPy() string {
 	// Get the current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
 		return ""
 	}
 
-	// Try to find main.py in stock_analysis_a_stock directory
+	// Try to find cli_entry.py in stock_analysis_a_stock directory
 	possiblePaths := []string{
-		filepath.Join(cwd, "..", "stock_analysis_a_stock", "src", "a_stock_analysis", "main.py"),
-		filepath.Join(cwd, "..", "..", "stock_analysis_a_stock", "src", "a_stock_analysis", "main.py"),
-		filepath.Join(cwd, "stock_analysis_a_stock", "src", "a_stock_analysis", "main.py"),
+		filepath.Join(cwd, "..", "stock_analysis_a_stock", "src", "a_stock_analysis", "cli_entry.py"),
+		filepath.Join(cwd, "..", "..", "stock_analysis_a_stock", "src", "a_stock_analysis", "cli_entry.py"),
+		filepath.Join(cwd, "stock_analysis_a_stock", "src", "a_stock_analysis", "cli_entry.py"),
 	}
 
 	for _, path := range possiblePaths {
