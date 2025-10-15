@@ -52,6 +52,128 @@ type AnalysisRequest struct {
 	Market      string `json:"market"`
 }
 
+// AISettings represents the AI model configuration
+type AISettings struct {
+	APIKey      string  `json:"api_key"`
+	BaseURL     string  `json:"base_url"`
+	ModelName   string  `json:"model_name"`
+	Temperature float64 `json:"temperature"`
+	MaxTokens   int     `json:"max_tokens"`
+}
+
+// getSettingsFilePath returns the path to the settings file
+func getSettingsFilePath() string {
+	// Store settings in user's home directory or current directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// Fallback to current directory
+		return "ai_settings.json"
+	}
+	settingsDir := filepath.Join(homeDir, ".a_stock_analysis")
+	os.MkdirAll(settingsDir, 0755)
+	return filepath.Join(settingsDir, "ai_settings.json")
+}
+
+// loadSettings loads AI settings from file
+func loadSettings() (*AISettings, error) {
+	settingsPath := getSettingsFilePath()
+	
+	// Check if file exists
+	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+		// Return default settings
+		return &AISettings{
+			APIKey:      "",
+			BaseURL:     "https://api.openai.com/v1",
+			ModelName:   "gpt-4o",
+			Temperature: 0.8,
+			MaxTokens:   14000,
+		}, nil
+	}
+	
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return nil, err
+	}
+	
+	var settings AISettings
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return nil, err
+	}
+	
+	return &settings, nil
+}
+
+// saveSettings saves AI settings to file
+func saveSettings(settings *AISettings) error {
+	settingsPath := getSettingsFilePath()
+	
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	
+	return os.WriteFile(settingsPath, data, 0644)
+}
+
+// writeSettingsToEnv writes settings to .env file for Python to use
+func writeSettingsToEnv(settings *AISettings) error {
+	// Find the Python script directory
+	mainPyPath := findMainPy()
+	if mainPyPath == "" {
+		return fmt.Errorf("未找到Python分析脚本目录")
+	}
+	
+	pythonDir := filepath.Dir(mainPyPath)
+	envPath := filepath.Join(pythonDir, ".env")
+	
+	// Create env content
+	envContent := fmt.Sprintf(`OPENAI_API_KEY=%s
+OPENAI_BASE_URL=%s
+OPENAI_MODEL_NAME=%s
+TEMPERATURE=%f
+MAX_TOKENS=%d
+`, settings.APIKey, settings.BaseURL, settings.ModelName, settings.Temperature, settings.MaxTokens)
+	
+	return os.WriteFile(envPath, []byte(envContent), 0644)
+}
+
+func getSettingsHandler(w http.ResponseWriter, r *http.Request) {
+	settings, err := loadSettings()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(settings)
+}
+
+func saveSettingsHandler(w http.ResponseWriter, r *http.Request) {
+	var settings AISettings
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	// Save to settings file
+	if err := saveSettings(&settings); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	// Also write to .env for Python
+	if err := writeSettingsToEnv(&settings); err != nil {
+		log.Printf("警告: 无法写入.env文件: %v", err)
+		// Don't fail the request, just log the warning
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "success",
+		"message": "设置已保存",
+	})
+}
+
 func main() {
 	r := mux.NewRouter()
 
@@ -61,8 +183,11 @@ func main() {
 
 	// API endpoints
 	r.HandleFunc("/", homeHandler).Methods("GET")
+	r.HandleFunc("/settings", settingsPageHandler).Methods("GET")
 	r.HandleFunc("/api/analyze", analyzeHandler).Methods("POST")
 	r.HandleFunc("/api/session/{id}", getSessionHandler).Methods("GET")
+	r.HandleFunc("/api/settings", getSettingsHandler).Methods("GET")
+	r.HandleFunc("/api/settings", saveSettingsHandler).Methods("POST")
 	r.HandleFunc("/ws/{id}", wsHandler)
 
 	// Get port from environment or use default
@@ -114,6 +239,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
             color: white;
             margin-bottom: 40px;
             animation: fadeInDown 0.6s ease;
+            position: relative;
         }
 
         .header h1 {
@@ -125,6 +251,29 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
         .header p {
             font-size: 1.2em;
             opacity: 0.9;
+        }
+
+        .settings-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 12px 24px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .settings-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
 
         .main-card {
@@ -381,6 +530,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <div class="header">
+            <a href="/settings" class="settings-btn">⚙️ AI配置</a>
             <h1>🎯 A股智能分析系统</h1>
             <p>基于AI的专业股票分析平台</p>
         </div>
@@ -572,6 +722,384 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
                 analyzeBtn.textContent = '🚀 开始分析';
             }
         });
+    </script>
+</body>
+</html>`
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(html))
+}
+
+func settingsPageHandler(w http.ResponseWriter, r *http.Request) {
+	html := `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 配置设置 - A股智能分析系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .nav-back {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-back:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateX(-5px);
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .form-group .label-desc {
+            font-size: 0.9em;
+            color: #666;
+            font-weight: normal;
+            margin-top: 4px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group input[type="password"] {
+            font-family: monospace;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .info-box {
+            background: #f0f7ff;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 25px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="nav-back">← 返回主页</a>
+        
+        <div class="header">
+            <h1>⚙️ AI 配置设置</h1>
+            <p>配置您的AI模型参数</p>
+        </div>
+
+        <div class="main-card">
+            <div id="alertBox" class="alert"></div>
+
+            <div class="info-box">
+                <h3>📝 配置说明</h3>
+                <ul>
+                    <li><strong>API Key</strong>: 您的OpenAI API密钥</li>
+                    <li><strong>Base URL</strong>: API服务地址（如使用代理或自建服务）</li>
+                    <li><strong>Model Name</strong>: 使用的模型名称（如 gpt-4o, gpt-4, gpt-3.5-turbo）</li>
+                    <li><strong>Temperature</strong>: 控制输出随机性（0-1，越高越随机）</li>
+                    <li><strong>Max Tokens</strong>: 单次生成的最大token数</li>
+                </ul>
+            </div>
+
+            <form id="settingsForm">
+                <div class="form-group">
+                    <label for="apiKey">
+                        🔑 API Key
+                        <div class="label-desc">您的OpenAI API密钥</div>
+                    </label>
+                    <input type="password" id="apiKey" name="api_key" placeholder="sk-..." required>
+                </div>
+
+                <div class="form-group">
+                    <label for="baseUrl">
+                        🌐 Base URL
+                        <div class="label-desc">API服务地址</div>
+                    </label>
+                    <input type="text" id="baseUrl" name="base_url" placeholder="https://api.openai.com/v1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="modelName">
+                        🤖 Model Name
+                        <div class="label-desc">使用的AI模型名称</div>
+                    </label>
+                    <input type="text" id="modelName" name="model_name" placeholder="gpt-4o" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="temperature">
+                        🌡️ Temperature
+                        <div class="label-desc">控制输出随机性（0.0 - 1.0）</div>
+                    </label>
+                    <input type="number" id="temperature" name="temperature" min="0" max="1" step="0.1" placeholder="0.8" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="maxTokens">
+                        📊 Max Tokens
+                        <div class="label-desc">单次生成的最大token数</div>
+                    </label>
+                    <input type="number" id="maxTokens" name="max_tokens" min="1000" max="128000" step="1000" placeholder="14000" required>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary" id="saveBtn">
+                        💾 保存设置
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="resetBtn">
+                        🔄 重置为默认
+                    </button>
+                </div>
+            </form>
+
+            <div class="loader" id="loader"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load settings on page load
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                
+                document.getElementById('apiKey').value = settings.api_key || '';
+                document.getElementById('baseUrl').value = settings.base_url || 'https://api.openai.com/v1';
+                document.getElementById('modelName').value = settings.model_name || 'gpt-4o';
+                document.getElementById('temperature').value = settings.temperature || 0.8;
+                document.getElementById('maxTokens').value = settings.max_tokens || 14000;
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        // Show alert message
+        function showAlert(message, type) {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.textContent = message;
+            alertBox.className = 'alert ' + type + ' show';
+            
+            setTimeout(() => {
+                alertBox.classList.remove('show');
+            }, 5000);
+        }
+
+        // Save settings
+        document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const saveBtn = document.getElementById('saveBtn');
+            const loader = document.getElementById('loader');
+            
+            saveBtn.disabled = true;
+            loader.style.display = 'block';
+            
+            const formData = {
+                api_key: document.getElementById('apiKey').value,
+                base_url: document.getElementById('baseUrl').value,
+                model_name: document.getElementById('modelName').value,
+                temperature: parseFloat(document.getElementById('temperature').value),
+                max_tokens: parseInt(document.getElementById('maxTokens').value)
+            };
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert('✅ ' + result.message, 'success');
+                } else {
+                    showAlert('❌ 保存失败: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('❌ 保存失败: ' + error.message, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                loader.style.display = 'none';
+            }
+        });
+
+        // Reset to default
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            document.getElementById('apiKey').value = '';
+            document.getElementById('baseUrl').value = 'https://api.openai.com/v1';
+            document.getElementById('modelName').value = 'gpt-4o';
+            document.getElementById('temperature').value = '0.8';
+            document.getElementById('maxTokens').value = '14000';
+            showAlert('ℹ️ 已重置为默认值，请点击"保存设置"以应用', 'success');
+        });
+
+        // Load settings when page loads
+        loadSettings();
     </script>
 </body>
 </html>`

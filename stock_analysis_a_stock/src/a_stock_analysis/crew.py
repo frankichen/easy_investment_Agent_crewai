@@ -11,19 +11,19 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-# from langchain.llms import Ollama
-# llm = Ollama(model="llama3.1")
+# Load AI configuration from settings file or environment variables
+from config_loader import load_ai_config
+ai_config = load_ai_config()
 
-# 从环境变量读取模型配置
-model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
-api_key = os.getenv("OPENAI_API_KEY")
-base_url = os.getenv("OPENAI_BASE_URL")
-temperature = float(os.getenv("TEMPERATURE", "0.8"))
-max_tokens = int(os.getenv("MAX_TOKENS", "14000"))
+model_name = ai_config["model_name"]
+api_key = ai_config["api_key"]
+base_url = ai_config["base_url"]
+temperature = ai_config["temperature"]
+max_tokens = ai_config["max_tokens"]
 
 from crewai import LLM
 llm = LLM(
-    model=f"openai/{model_name}", # 使用环境变量中的模型名称
+    model=f"openai/{model_name}", # 使用配置中的模型名称
     api_key=api_key,
     base_url=base_url,
     temperature=temperature,
