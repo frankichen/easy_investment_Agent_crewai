@@ -12,17 +12,23 @@ if %ERRORLEVEL% EQU 0 (
     poetry run pip install pyinstaller
     poetry run pyinstaller build_pyinstaller.spec --clean
 ) else (
-    REM Check if we're in a virtual environment
-    if defined VIRTUAL_ENV (
+    REM Check if virtual environment exists
+    if exist venv\Scripts\activate.bat (
         echo Using virtual environment...
+        call venv\Scripts\activate.bat
+        pip install pyinstaller
+        pyinstaller build_pyinstaller.spec --clean
+    ) else if defined VIRTUAL_ENV (
+        echo Using active virtual environment...
         pip install pyinstaller
         pyinstaller build_pyinstaller.spec --clean
     ) else (
         echo ERROR: No poetry or virtual environment detected!
         echo Please install dependencies first:
-        echo   poetry install --no-root
+        echo   运行: setup_env.bat
+        echo   然后运行: build_python_bundle_venv.bat
         echo   OR
-        echo   python -m venv venv ^&^& venv\Scripts\activate ^&^& pip install -r requirements.txt
+        echo   poetry install --no-root
         exit /b 1
     )
 )

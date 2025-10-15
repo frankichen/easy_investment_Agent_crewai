@@ -27,23 +27,23 @@ var (
 	}
 
 	// Store active analysis sessions
-	sessions = make(map[string]*AnalysisSession)
+	sessions  = make(map[string]*AnalysisSession)
 	sessionMu sync.RWMutex
 )
 
 // AnalysisSession represents an active analysis
 type AnalysisSession struct {
-	ID            string                 `json:"id"`
-	Status        string                 `json:"status"` // running, completed, failed
-	Output        []string               `json:"output"`
-	Result        string                 `json:"result"`
-	StartTime     time.Time              `json:"start_time"`
-	EndTime       time.Time              `json:"end_time,omitempty"`
-	CompanyName   string                 `json:"company_name"`
-	StockCode     string                 `json:"stock_code"`
-	Market        string                 `json:"market"`
-	subscribers   []*websocket.Conn
-	mu            sync.RWMutex
+	ID          string    `json:"id"`
+	Status      string    `json:"status"` // running, completed, failed
+	Output      []string  `json:"output"`
+	Result      string    `json:"result"`
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time,omitempty"`
+	CompanyName string    `json:"company_name"`
+	StockCode   string    `json:"stock_code"`
+	Market      string    `json:"market"`
+	subscribers []*websocket.Conn
+	mu          sync.RWMutex
 }
 
 // AnalysisRequest represents the analysis request from frontend
@@ -78,7 +78,7 @@ func getSettingsFilePath() string {
 // loadSettings loads AI settings from file
 func loadSettings() (*AISettings, error) {
 	settingsPath := getSettingsFilePath()
-	
+
 	// Check if file exists
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 		// Return default settings
@@ -90,29 +90,29 @@ func loadSettings() (*AISettings, error) {
 			MaxTokens:   14000,
 		}, nil
 	}
-	
+
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var settings AISettings
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return nil, err
 	}
-	
+
 	return &settings, nil
 }
 
 // saveSettings saves AI settings to file
 func saveSettings(settings *AISettings) error {
 	settingsPath := getSettingsFilePath()
-	
+
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
 	}
-	
+
 	return os.WriteFile(settingsPath, data, 0644)
 }
 
@@ -123,10 +123,10 @@ func writeSettingsToEnv(settings *AISettings) error {
 	if cliEntryPath == "" {
 		return fmt.Errorf("未找到Python分析脚本目录 (cli_entry.py)")
 	}
-	
+
 	pythonDir := filepath.Dir(cliEntryPath)
 	envPath := filepath.Join(pythonDir, ".env")
-	
+
 	// Create env content
 	envContent := fmt.Sprintf(`OPENAI_API_KEY=%s
 OPENAI_BASE_URL=%s
@@ -134,7 +134,7 @@ OPENAI_MODEL_NAME=%s
 TEMPERATURE=%f
 MAX_TOKENS=%d
 `, settings.APIKey, settings.BaseURL, settings.ModelName, settings.Temperature, settings.MaxTokens)
-	
+
 	return os.WriteFile(envPath, []byte(envContent), 0644)
 }
 
@@ -144,7 +144,7 @@ func getSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(settings)
 }
@@ -155,22 +155,22 @@ func saveSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	// Save to settings file
 	if err := saveSettings(&settings); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	// Also write to .env for Python
 	if err := writeSettingsToEnv(&settings); err != nil {
 		log.Printf("警告: 无法写入.env文件: %v", err)
 		// Don't fail the request, just log the warning
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "success",
+		"status":  "success",
 		"message": "设置已保存",
 	})
 }
@@ -200,10 +200,10 @@ func main() {
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("Starting server on http://localhost%s", addr)
 	log.Printf("访问 http://localhost%s 使用A股智能分析系统", addr)
-	
+
 	// Open browser automatically
 	go openBrowser(fmt.Sprintf("http://localhost%s", addr))
-	
+
 	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatal(err)
 	}
@@ -1232,7 +1232,7 @@ func runAnalysis(session *AnalysisSession) {
 	// Try to find bundled Python engine first
 	enginePath := findBundledEngine()
 	var cmd *exec.Cmd
-	
+
 	if enginePath != "" {
 		// Use bundled engine
 		session.broadcastStatus("使用内置Python引擎...")
@@ -1242,6 +1242,9 @@ func runAnalysis(session *AnalysisSession) {
 			"--code", session.StockCode,
 			"--market", session.Market,
 		)
+		// CRITICAL: Set working directory to the engine's directory
+		// PyInstaller needs to run from its own directory to find DLLs in _internal
+		cmd.Dir = filepath.Dir(enginePath)
 	} else {
 		// Fallback to traditional Python method
 		session.broadcastStatus("使用系统Python环境...")
@@ -1441,7 +1444,7 @@ func findBundledEngine() string {
 		return ""
 	}
 	exeDir := filepath.Dir(exePath)
-	
+
 	// Check for bundled engine in several locations
 	possiblePaths := []string{
 		// Next to the executable
@@ -1451,20 +1454,20 @@ func findBundledEngine() string {
 		filepath.Join(exeDir, "stock_analysis_engine", "stock_analysis_engine.exe"),
 		filepath.Join(exeDir, "stock_analysis_engine", "stock_analysis_engine"),
 	}
-	
+
 	for _, path := range possiblePaths {
 		if _, err := os.Stat(path); err == nil {
 			return path
 		}
 	}
-	
+
 	return ""
 }
 
 func findPython() string {
 	// Try common Python commands
 	commands := []string{"python3", "python", "py"}
-	
+
 	for _, cmd := range commands {
 		if path, err := exec.LookPath(cmd); err == nil {
 			// Verify it's Python 3
@@ -1474,7 +1477,7 @@ func findPython() string {
 			}
 		}
 	}
-	
+
 	return ""
 }
 
@@ -1503,7 +1506,7 @@ func findCliEntryPy() string {
 
 func openBrowser(url string) {
 	time.Sleep(1 * time.Second) // Wait for server to start
-	
+
 	var err error
 	switch runtime.GOOS {
 	case "linux":
@@ -1515,7 +1518,7 @@ func openBrowser(url string) {
 	default:
 		err = fmt.Errorf("unsupported platform")
 	}
-	
+
 	if err != nil {
 		log.Printf("无法自动打开浏览器: %v", err)
 		log.Printf("请手动访问: %s", url)

@@ -25,7 +25,7 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-echo ✓ Python和Go环境已就绪
+echo ? Python和Go环境已就绪
 
 REM 步骤1: 构建Python Bundle
 echo.
@@ -38,7 +38,7 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 cd ..
-echo ✓ Python引擎构建完成
+echo ? Python引擎构建完成
 
 REM 步骤2: 复制Python Bundle到UI目录
 echo.
@@ -49,7 +49,7 @@ if %ERRORLEVEL% NEQ 0 (
     echo ERROR: 复制Python引擎失败
     exit /b 1
 )
-echo ✓ Python引擎已复制到UI目录
+echo ? Python引擎已复制到UI目录
 
 REM 步骤3: 构建Go UI
 echo.
@@ -62,7 +62,7 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 cd ..
-echo ✓ Go UI程序构建完成
+echo ? Go UI程序构建完成
 
 REM 步骤4: 创建发布包
 echo.
@@ -103,7 +103,7 @@ echo - 首次运行可能需要几秒钟加载Python引擎 >> "release\A股智�
 echo - 确保系统已安装Microsoft Visual C++ Redistributable >> "release\A股智能分析系统\README.txt"
 echo - Windows Defender可能会提示，选择"仍要运行"即可 >> "release\A股智能分析系统\README.txt"
 
-echo ✓ 发布包已创建
+echo ? 发布包已创建
 
 REM 完成
 echo.

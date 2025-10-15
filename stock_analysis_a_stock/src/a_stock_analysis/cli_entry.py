@@ -8,10 +8,10 @@ import os
 import argparse
 
 # 首先设置实时输出
-from streaming_output import setup_realtime_output, flush_all
+from a_stock_analysis.streaming_output import setup_realtime_output, flush_all
 setup_realtime_output()
 
-from crew import AStockAnalysisCrew
+from a_stock_analysis.crew import AStockAnalysisCrew
 
 def flush_print(*args, **kwargs):
     """立即刷新输出的print函数"""

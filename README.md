@@ -48,6 +48,16 @@ cd ui
 
 现在支持将整个系统（Go UI + Python引擎）打包成单个Windows可执行文件包！
 
+### ⚠️ 重要提示：跨平台构建
+
+**PyInstaller 不支持跨平台编译！必须在目标平台上构建：**
+
+- ✅ **Windows 版本** → 必须在 **Windows** 上运行 `build_windows_exe.bat`
+- ✅ **Linux 版本** → 必须在 **Linux** 上运行 `build_linux.sh`
+- ❌ **不要在 Linux 上构建 Windows 版本**（会生成无法运行的 Linux 可执行文件）
+
+**详细说明：** [WINDOWS_BUILD_REQUIRED.md](./WINDOWS_BUILD_REQUIRED.md) - **如遇问题必读！**
+
 ### 打包特性
 
 - 🎁 **单体分发**：无需安装Python或Go环境
@@ -57,22 +67,29 @@ cd ui
 
 ### 快速构建
 
-**Windows系统：**
-```bash
+**Windows系统（推荐）：**
+```cmd
 build_windows_exe.bat
 ```
 
-**Linux/macOS系统（交叉编译）：**
+**验证构建：**
+```cmd
+verify_build.bat
+```
+
+**Linux/macOS 系统构建 Linux 版本：**
 ```bash
-chmod +x build_windows_exe.sh
-./build_windows_exe.sh
+chmod +x build_linux.sh
+./build_linux.sh
 ```
 
 构建完成后，发布包位于 `release/A股智能分析系统/` 目录。
 
 **详细打包说明：**
+- [WINDOWS_BUILD_REQUIRED.md](./WINDOWS_BUILD_REQUIRED.md) - **跨平台构建问题必读**
 - [打包指南.md](./打包指南.md) - 中文详细教程
 - [BUILD_GUIDE.md](./BUILD_GUIDE.md) - English technical guide
+- [CROSS_PLATFORM_BUILD.md](./CROSS_PLATFORM_BUILD.md) - 跨平台构建详解
 
 ## 🏗️ 系统架构
 

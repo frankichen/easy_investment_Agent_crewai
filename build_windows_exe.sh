@@ -3,7 +3,8 @@
 # A股智能分析系统 - Windows单体可执行文件构建脚本
 # ============================================================================
 # 本脚本将Python核心和Go UI打包成单个Windows可执行文件包
-# 可在Linux/macOS上交叉编译Windows版本
+# ⚠️  警告：PyInstaller不支持跨平台编译！
+# 虽然可以在Linux上构建Go UI的Windows版本，但Python引擎必须在Windows上构建！
 # ============================================================================
 
 set -e
@@ -12,6 +13,20 @@ echo ""
 echo "========================================"
 echo " A股智能分析系统 - 单体程序构建"
 echo "========================================"
+echo ""
+echo "⚠️  重要提示："
+echo "    PyInstaller 不支持跨平台编译！"
+echo "    如果你在 Linux/macOS 上运行此脚本："
+echo "    - Go UI 会正确构建为 Windows .exe 文件"
+echo "    - Python 引擎会构建为 Linux 格式（无法在 Windows 运行）"
+echo ""
+echo "    推荐做法："
+echo "    - 构建 Windows 版本 → 在 Windows 上运行 build_windows_exe.bat"
+echo "    - 构建 Linux 版本 → 在 Linux 上运行 build_linux.sh"
+echo ""
+echo "    详细说明请查看: WINDOWS_BUILD_REQUIRED.md"
+echo ""
+read -p "按 Enter 继续，或 Ctrl+C 取消..." dummy
 echo ""
 
 # 检查必要工具
@@ -42,6 +57,16 @@ echo ""
 echo "[3/5] 准备打包资源..."
 mkdir -p ui/python_bundle
 cp -r stock_analysis_a_stock/dist/stock_analysis_engine ui/python_bundle/
+
+# 重要：为Windows目标添加.exe扩展名
+if [ ! -f "ui/python_bundle/stock_analysis_engine/stock_analysis_engine.exe" ]; then
+    echo "⚠️  检测到非Windows可执行文件，添加.exe扩展名..."
+    if [ -f "ui/python_bundle/stock_analysis_engine/stock_analysis_engine" ]; then
+        mv "ui/python_bundle/stock_analysis_engine/stock_analysis_engine" \
+           "ui/python_bundle/stock_analysis_engine/stock_analysis_engine.exe"
+        echo "✓ 已重命名为 stock_analysis_engine.exe"
+    fi
+fi
 echo "✓ Python引擎已复制到UI目录"
 
 # 步骤3: 构建Go UI (交叉编译为Windows)
@@ -96,18 +121,18 @@ EOF
 
 echo "✓ 发布包已创建"
 
-# 步骤5: 压缩发布包 (使用UPX)
-echo ""
-echo "[6/6] 压缩可执行文件和库..."
-if command -v upx &> /dev/null; then
-    echo "使用UPX进行极限压缩..."
-    # 强制压缩Go可执行文件和所有Python相关的二进制文件
-    find "release/A股智能分析系统/" -type f -name "*.exe" -exec upx --best {} \;
-    find "release/A股智能分析系统/python_bundle/" -type f \( -name "*.so*" -o -name "*.pyd" -o -name "*.dll" \) -exec upx --best {} \;
-    echo "✓ 压缩完成"
-else
-    echo "⚠️  警告: UPX未安装，跳过压缩步骤。最终包体积会较大。"
-fi
+# # 步骤5: 压缩发布包 (使用UPX)
+# echo ""
+# echo "[6/6] 压缩可执行文件和库..."
+# if command -v upx &> /dev/null; then
+#     echo "使用UPX进行极限压缩..."
+#     # 强制压缩Go可执行文件和所有Python相关的二进制文件
+#     find "release/A股智能分析系统/" -type f -name "*.exe" -exec upx --best {} \;
+#     find "release/A股智能分析系统/python_bundle/" -type f \( -name "*.so*" -o -name "*.pyd" -o -name "*.dll" \) -exec upx --best {} \;
+#     echo "✓ 压缩完成"
+# else
+#     echo "⚠️  警告: UPX未安装，跳过压缩步骤。最终包体积会较大。"
+# fi
 
 # 完成
 echo ""
