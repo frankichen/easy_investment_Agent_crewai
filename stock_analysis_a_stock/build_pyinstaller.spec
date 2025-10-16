@@ -33,6 +33,16 @@ datas += copy_metadata('crewai')
 datas += copy_metadata('akshare')
 datas += copy_metadata('pandas')
 
+# Add metadata for jaraco packages to fix pkg_resources issues
+try:
+    datas += copy_metadata('jaraco.text')
+except Exception:
+    pass  # jaraco.text might not always be needed
+try:
+    datas += copy_metadata('jaraco.functools')
+except Exception:
+    pass
+
 # Hidden imports - modules that PyInstaller might miss
 hiddenimports = [
     # Core crewai modules
@@ -84,11 +94,30 @@ hiddenimports = [
     # Other potential dependencies
     'pydantic',
     'pydantic_core',
+    
+    # pkg_resources and setuptools dependencies
+    # These are needed by PyInstaller runtime hooks
+    'pkg_resources',
+    'pkg_resources.extern',
+    'jaraco',
+    'jaraco.text',
+    'jaraco.functools',
+    'jaraco.context',
 ]
 
 # Additional hidden imports from submodules
 hiddenimports += collect_submodules('crewai')
 hiddenimports += collect_submodules('akshare')
+
+# Collect jaraco submodules to fix pkg_resources runtime hook issues
+try:
+    hiddenimports += collect_submodules('jaraco.text')
+except Exception:
+    pass  # jaraco.text might not be installed
+try:
+    hiddenimports += collect_submodules('jaraco.functools')
+except Exception:
+    pass
 
 # Binaries - none explicitly needed
 binaries = []
@@ -115,9 +144,10 @@ a = Analysis(
         'jupyter',
         'notebook',
         'pytest',
-        'setuptools',
-        'pip',
-        'wheel',
+        # Note: Don't exclude setuptools, pip, wheel as they may be needed by pkg_resources
+        # 'setuptools',
+        # 'pip',
+        # 'wheel',
     ],
     noarchive=False,
     optimize=0,
