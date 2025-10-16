@@ -3,6 +3,7 @@ release/
 dist/
 build/
 *.spec
+!build_pyinstaller.spec
 
 # Python
 __pycache__/
