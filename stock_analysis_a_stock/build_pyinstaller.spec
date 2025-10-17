@@ -18,10 +18,20 @@ datas = []
 # Add crewai translation files - this fixes the FileNotFoundError for translations
 datas += collect_data_files('crewai', includes=['**/*.json'])
 
-# Add config files (agents.yaml, tasks.yaml)
+# Add tiktoken data files - fixes "Unknown encoding cl100k_base" error
+datas += collect_data_files('tiktoken')
+datas += collect_data_files('tiktoken_ext')
+
+# Add litellm data files - fixes anthropic_tokenizer.json and other tokenizer files
+datas += collect_data_files('litellm', includes=['**/*.json'])
+
+# Add akshare data files - fixes calendar.json and other data files
+datas += collect_data_files('akshare', includes=['**/*.json', '**/*.csv', '**/*.txt'])
+
+# Add config files (agents.yaml, tasks.yaml) - must be in a_stock_analysis package
 config_dir = os.path.join(a_stock_analysis_path, 'config')
 if os.path.exists(config_dir):
-    datas.append((config_dir, 'config'))
+    datas.append((config_dir, 'a_stock_analysis/config'))
 
 # Add env.example as reference
 env_example = os.path.join(a_stock_analysis_path, 'env.example')
@@ -32,6 +42,8 @@ if os.path.exists(env_example):
 datas += copy_metadata('crewai')
 datas += copy_metadata('akshare')
 datas += copy_metadata('pandas')
+datas += copy_metadata('tiktoken')
+datas += copy_metadata('litellm')
 
 # Add metadata for jaraco packages to fix pkg_resources issues
 try:
@@ -95,6 +107,18 @@ hiddenimports = [
     'pydantic',
     'pydantic_core',
     
+    # tiktoken and encoding support
+    'tiktoken',
+    'tiktoken.core',
+    'tiktoken.registry',
+    'tiktoken_ext',
+    'tiktoken_ext.openai_public',
+    
+    # litellm and its dependencies
+    'litellm',
+    'litellm.litellm_core_utils',
+    'litellm.litellm_core_utils.tokenizers',
+    
     # pkg_resources and setuptools dependencies
     # These are needed by PyInstaller runtime hooks
     'pkg_resources',
@@ -103,6 +127,15 @@ hiddenimports = [
     'jaraco.text',
     'jaraco.functools',
     'jaraco.context',
+    
+    # Application specific modules - tools package
+    'a_stock_analysis.tools',
+    'a_stock_analysis.tools.a_stock_data_tool',
+    'a_stock_analysis.tools.financial_tool',
+    'a_stock_analysis.tools.market_sentiment_tool',
+    'a_stock_analysis.tools.calculator_tool',
+    'a_stock_analysis.streaming_output',
+    'a_stock_analysis.config_loader',
 ]
 
 # Additional hidden imports from submodules
@@ -134,15 +167,13 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[
         # Exclude unnecessary packages to reduce size
-        'matplotlib',
+        # Note: Don't exclude IPython, jupyter as they may be needed by pyvis/crewai
+        # Note: Don't exclude matplotlib as it may be needed by some analysis tools
         'tkinter',
         'PyQt5',
         'PyQt6',
         'PySide2',
         'PySide6',
-        'IPython',
-        'jupyter',
-        'notebook',
         'pytest',
         # Note: Don't exclude setuptools, pip, wheel as they may be needed by pkg_resources
         # 'setuptools',

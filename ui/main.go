@@ -1245,6 +1245,14 @@ func runAnalysis(session *AnalysisSession) {
 		// CRITICAL: Set working directory to the engine's directory
 		// PyInstaller needs to run from its own directory to find DLLs in _internal
 		cmd.Dir = filepath.Dir(enginePath)
+
+        // 强制子进程使用 UTF-8，避免 Windows 控制台默认 GBK 导致的编码问题
+        cmd.Env = append(os.Environ(),
+            "PYTHONUTF8=1",
+            "PYTHONIOENCODING=utf-8",
+            "LC_ALL=C.UTF-8",
+            "LANG=C.UTF-8",
+        )
 	} else {
 		// Fallback to traditional Python method
 		session.broadcastStatus("使用系统Python环境...")
@@ -1272,6 +1280,14 @@ func runAnalysis(session *AnalysisSession) {
 		)
 		// Set the working directory to the script's directory
 		cmd.Dir = filepath.Dir(cliEntryPath)
+
+        // 同样为系统 Python 场景设置 UTF-8 环境
+        cmd.Env = append(os.Environ(),
+            "PYTHONUTF8=1",
+            "PYTHONIOENCODING=utf-8",
+            "LC_ALL=C.UTF-8",
+            "LANG=C.UTF-8",
+        )
 	}
 
 	// Set up pipes for stdout and stderr
