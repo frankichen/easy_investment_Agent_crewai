@@ -1,5 +1,5 @@
 import sys
-from crew import AStockAnalysisCrew
+from .crew import AStockAnalysisCrew
 
 def run():
     """

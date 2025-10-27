@@ -155,3 +155,104 @@ dist/stock_analysis_engine/
 **日期 (Date)**: 2025-10-16  
 **作者 (Author)**: GitHub Copilot  
 **状态 (Status)**: ✅ Fixed
+
+---
+
+## 更新 (Update) - 2025-10-16
+
+### 问题描述 (New Issue Description)
+
+After the initial fix, users encountered another PyInstaller error:
+
+```
+ModuleNotFoundError: No module named 'jaraco.text'
+[PYI-28816:ERROR] Failed to execute script 'pyi_rth_pkgres' due to unhandled exception!
+```
+
+This error occurs in the PyInstaller runtime hook `pyi_rth_pkgres`, which is responsible for handling `pkg_resources`. The `pkg_resources` module (part of setuptools) requires `jaraco.text` and other jaraco packages as dependencies.
+
+### 根本原因 (Root Cause)
+
+1. **Runtime Hook Dependency**: PyInstaller includes a runtime hook for `pkg_resources` that runs before the main application.
+2. **Missing jaraco Packages**: The `pkg_resources` module requires `jaraco.text`, `jaraco.functools`, and `jaraco.context` as dependencies.
+3. **Excluded setuptools**: The original spec file excluded setuptools, pip, and wheel, but `pkg_resources` needs these packages.
+
+### 解决方案 (Solution)
+
+Updated `build_pyinstaller.spec` with the following changes:
+
+#### 1. Added jaraco Hidden Imports
+```python
+hiddenimports = [
+    # ... existing imports ...
+    
+    # pkg_resources and setuptools dependencies
+    # These are needed by PyInstaller runtime hooks
+    'pkg_resources',
+    'pkg_resources.extern',
+    'jaraco',
+    'jaraco.text',
+    'jaraco.functools',
+    'jaraco.context',
+]
+```
+
+#### 2. Added jaraco Metadata Collection
+```python
+# Add metadata for jaraco packages to fix pkg_resources issues
+try:
+    datas += copy_metadata('jaraco.text')
+except Exception:
+    pass  # jaraco.text might not always be needed
+try:
+    datas += copy_metadata('jaraco.functools')
+except Exception:
+    pass
+```
+
+#### 3. Added jaraco Submodules Collection
+```python
+# Collect jaraco submodules to fix pkg_resources runtime hook issues
+try:
+    hiddenimports += collect_submodules('jaraco.text')
+except Exception:
+    pass  # jaraco.text might not be installed
+try:
+    hiddenimports += collect_submodules('jaraco.functools')
+except Exception:
+    pass
+```
+
+#### 4. Stopped Excluding setuptools
+```python
+excludes=[
+    # ... other excludes ...
+    # Note: Don't exclude setuptools, pip, wheel as they may be needed by pkg_resources
+    # 'setuptools',
+    # 'pip',
+    # 'wheel',
+]
+```
+
+### 技术细节 (Technical Details)
+
+The error occurred because:
+- PyInstaller uses runtime hooks to initialize certain packages before the main application runs
+- The `pyi_rth_pkgres` hook initializes `pkg_resources` to handle package metadata
+- `pkg_resources` depends on `jaraco.text` and other jaraco packages
+- Without these dependencies included, the runtime hook fails before the application can start
+
+### 验证 (Verification)
+
+After this fix, the packaged application should:
+
+1. ✅ Successfully initialize the pkg_resources runtime hook
+2. ✅ Load all jaraco dependencies without errors
+3. ✅ Start the analysis engine without ModuleNotFoundError
+4. ✅ Run all agents and tasks correctly
+
+---
+
+**日期 (Date)**: 2025-10-16  
+**作者 (Author)**: GitHub Copilot  
+**状态 (Status)**: ✅ Fixed (Updated)

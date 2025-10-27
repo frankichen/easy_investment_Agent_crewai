@@ -3,10 +3,10 @@ from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 from crewai.events import BaseEventListener as BaseCallbackHandler
 
-from tools.a_stock_data_tool import AStockDataTool
-from tools.financial_tool import FinancialAnalysisTool
-from tools.market_sentiment_tool import MarketSentimentTool
-from tools.calculator_tool import CalculatorTool
+from .tools.a_stock_data_tool import AStockDataTool
+from .tools.financial_tool import FinancialAnalysisTool
+from .tools.market_sentiment_tool import MarketSentimentTool
+from .tools.calculator_tool import CalculatorTool
 
 import os
 import sys
@@ -14,11 +14,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 确保输出实时刷新
-from streaming_output import setup_realtime_output
+from .streaming_output import setup_realtime_output
 setup_realtime_output()
 
 # Load AI configuration from settings file or environment variables
-from config_loader import load_ai_config
+from .config_loader import load_ai_config
 ai_config = load_ai_config()
 
 model_name = ai_config["model_name"]
@@ -92,7 +92,7 @@ class AStockAnalysisCrew:
     def a_stock_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config['a_stock_analyst'],
-            verbose=2,  # 最高详细度
+            verbose=True,  # 最高详细度（布尔值）
             llm=llm,
             tools=[
                 AStockDataTool(),
@@ -112,7 +112,7 @@ class AStockAnalysisCrew:
     def financial_analyst(self) -> Agent:
         return Agent(
             config=self.agents_config['financial_analyst'],
-            verbose=2,  # 最高详细度
+            verbose=True,  # 最高详细度（布尔值）
             llm=llm,
             tools=[
                 AStockDataTool(),
@@ -132,7 +132,7 @@ class AStockAnalysisCrew:
     def market_sentiment_agent(self) -> Agent:
         return Agent(
             config=self.agents_config['market_sentiment_analyst'],
-            verbose=2,  # 最高详细度
+            verbose=True,  # 最高详细度（布尔值）
             llm=llm,
             tools=[
                 AStockDataTool(),
@@ -151,7 +151,7 @@ class AStockAnalysisCrew:
     def investment_advisor(self) -> Agent:
         return Agent(
             config=self.agents_config['investment_advisor'],
-            verbose=2,  # 最高详细度
+            verbose=True,  # 最高详细度（布尔值）
             llm=llm,
             tools=[
                 CalculatorTool(),
@@ -172,6 +172,6 @@ class AStockAnalysisCrew:
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
-            verbose=2,  # 使用最高详细度级别
+            verbose=True,  # 使用最高详细度（布尔值）
             callback=StockAnalysisCallbackHandler(),
         )

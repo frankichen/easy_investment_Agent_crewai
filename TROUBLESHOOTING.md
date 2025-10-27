@@ -311,10 +311,61 @@ poetry run pyinstaller build_pyinstaller.spec --clean
 dir dist\stock_analysis_engine\_internal\python312.dll
 ```
 
-#### 问题9: 分析时报错"ModuleNotFoundError"
+#### 问题9: 分析时报错"ModuleNotFoundError: No module named 'jaraco.text'"
 
 **症状:**
-Go程序启动成功，但点击"开始分析"后Python引擎报错缺少模块。
+Go程序启动成功，但Python引擎启动时立即报错：
+```
+ModuleNotFoundError: No module named 'jaraco.text'
+[PYI-28816:ERROR] Failed to execute script 'pyi_rth_pkgres' due to unhandled exception!
+```
+
+**原因:**
+PyInstaller的运行时钩子 `pyi_rth_pkgres` 需要 `pkg_resources`，而 `pkg_resources` 依赖于 `jaraco.text` 等jaraco包。
+
+**解决方案:**
+
+✅ **已在2025-10-16修复** - 更新的 `build_pyinstaller.spec` 已包含必要的修复。如果您仍遇到此问题：
+
+**步骤1: 确认使用最新spec文件**
+```bash
+cd stock_analysis_a_stock
+git pull  # 获取最新更新
+```
+
+**步骤2: 验证spec文件包含jaraco导入**
+检查 `build_pyinstaller.spec` 是否包含：
+```python
+hiddenimports=[
+    # ...
+    'pkg_resources',
+    'pkg_resources.extern',
+    'jaraco',
+    'jaraco.text',
+    'jaraco.functools',
+    'jaraco.context',
+],
+```
+
+**步骤3: 清理并重新打包**
+```bash
+cd stock_analysis_a_stock
+rm -rf build/ dist/
+poetry run pyinstaller build_pyinstaller.spec --clean
+```
+
+**步骤4: 如果仍然失败，手动安装jaraco包**
+```bash
+poetry run pip install jaraco.text jaraco.functools jaraco.context
+poetry run pyinstaller build_pyinstaller.spec --clean
+```
+
+详见：`stock_analysis_a_stock/PYINSTALLER_FIX.md`
+
+#### 问题10: 分析时报错其他"ModuleNotFoundError"
+
+**症状:**
+Go程序启动成功，但点击"开始分析"后Python引擎报错缺少其他模块。
 
 **原因:**
 PyInstaller未包含某些动态导入的模块。
@@ -344,7 +395,7 @@ poetry run pyinstaller build_pyinstaller.spec --clean
 poetry run pyinstaller build_pyinstaller.spec --collect-all missing_package
 ```
 
-#### 问题10: 无法连接网络/API
+#### 问题11: 无法连接网络/API
 
 **症状:**
 分析时提示网络错误或API调用失败。
